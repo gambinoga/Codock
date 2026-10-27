@@ -18,20 +18,20 @@ struct TasksPanel: View {
             }.padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
             if !model.connected {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Actualisation retardée — dernier état connu").font(.caption).foregroundColor(.secondary)
-                    Button("Réessayer maintenant") { model.poll() }.buttonStyle(.plain).foregroundColor(project.color)
-                    DisclosureGroup("Détails") { Text(model.error ?? "Lecture locale indisponible").font(.caption).foregroundColor(.secondary) }
+                    Text("Refresh delayed — last known state").font(.caption).foregroundColor(.secondary)
+                    Button("Retry now") { model.poll() }.buttonStyle(.plain).foregroundColor(project.color)
+                    DisclosureGroup("Details") { Text(model.error ?? "Local metadata is unavailable").font(.caption).foregroundColor(.secondary) }
                 }.padding(.horizontal, 10)
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(active, id: \.eventID) { task in ConversationRow(model: model, project: project, task: task) }
                     if !recent.isEmpty {
-                        Text("Récent").font(.system(size: 11)).foregroundColor(.secondary).padding(.horizontal, 10).padding(.top, 8).padding(.bottom, 3)
+                        Text("Recent").font(.system(size: 11)).foregroundColor(.secondary).padding(.horizontal, 10).padding(.top, 8).padding(.bottom, 3)
                         ForEach(recent, id: \.eventID) { task in ConversationRow(model: model, project: project, task: task) }
                     }
                     if active.isEmpty && recent.isEmpty {
-                        Text(model.connected ? "Aucune conversation pour le moment" : "En attente de l’actualisation")
+                        Text(model.connected ? "No conversations yet" : "Waiting for refresh")
                             .font(.system(size: 12)).foregroundColor(.secondary).padding(10)
                     }
                 }.animation(nil, value: active.map { $0.eventID }).animation(nil, value: recent.map { $0.eventID })
@@ -44,7 +44,7 @@ struct TasksPanel: View {
                 HStack(spacing: 10) {
                     if model.openingTask == "new:" + project.id { Spinner(color: project.color).frame(width: 17, height: 17) }
                     else { Image(systemName: "plus").font(.system(size: 16)).frame(width: 17) }
-                    Text(model.openingTask == "new:" + project.id ? "Ouverture…" : "Nouvelle conversation").font(.system(size: 13))
+                    Text(model.openingTask == "new:" + project.id ? "Opening…" : "New conversation").font(.system(size: 13))
                     Spacer()
                 }.padding(.horizontal, 10).padding(.vertical, 9).contentShape(Rectangle())
             }.buttonStyle(.plain).disabled(model.openingTask != nil)
@@ -70,17 +70,17 @@ struct ConversationRow: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(task.title).font(.system(size: 13)).foregroundColor(priority == 0 ? .secondary : .primary).lineLimit(1).truncationMode(.tail)
                         TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text(model.openingTask == task.eventID ? "Ouverture…" : ConversationTime.text(task: task, now: context.date))
+                            Text(model.openingTask == task.eventID ? "Opening…" : ConversationTime.text(task: task, now: context.date))
                                 .font(.system(size: 12)).foregroundColor(priority >= 3 ? stateColor(priority) : .secondary).lineLimit(1)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if model.openingTask == task.eventID { Spinner(color: project.color).frame(width: 13, height: 13) }
                 }.padding(.leading, 10).padding(.trailing, 4).frame(maxWidth: .infinity, minHeight: 54).contentShape(Rectangle())
-            }.buttonStyle(.plain).disabled(model.openingTask != nil).accessibilityLabel("Ouvrir \(task.title)")
+            }.buttonStyle(.plain).disabled(model.openingTask != nil).accessibilityLabel("Open \(task.title)")
             if [1, 3].contains(priority) {
                 Button { model.dismiss(task) } label: {
                     Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(.secondary).frame(width: 28, height: 36).contentShape(Rectangle())
-                }.buttonStyle(.plain).help("Marquer comme consulté").accessibilityLabel("Acquitter \(task.title)")
+                }.buttonStyle(.plain).help("Mark as read").accessibilityLabel("Dismiss \(task.title)")
             } else { Spacer().frame(width: 10) }
         }.background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(hovered ? 0.045 : 0)))
             .onHover { hovered = $0 }

@@ -1,0 +1,97 @@
+CODOCK — LOCAL CODEX STATUS DOCK
+
+START
+Install Codock.app in ~/Applications (or /Applications), then open it there.
+Do not launch the development bundle from Documents. The app lives in the menu bar
+as a bell icon and does not appear in the macOS Dock. Use its menu to show, configure,
+restart or quit. After quitting, reopen Codock.app. Option-Command-J shows/hides all docks.
+
+PROJECTS AND COLORS
+Right-click a dock or edge tab → Configure projects…
+Select at least one project, with no fixed maximum. Use detected Codex projects or
+choose folders, give each a 1–8 character alias, and choose a preset or any custom
+accent with the native color picker. The project background can be customized
+independently; text contrast adapts automatically. Automatic background restores
+the palette. Dock background colors the entire pill; Automatic restores the system
+light/dark surface. Click Save to apply. Project colors and dock background are
+shared by all copies. Scroll the dock if the project list exceeds the screen edge.
+
+Codex data defaults to ~/.codex and can be changed in settings. After changing it,
+add a project folder if the selection is empty, then save to refresh its catalogue.
+Fresh installs contain no personal projects. Existing settings are retained on upgrade.
+
+READING STATES
+Idle / read result: faded avatar; fully opaque on hover.
+Running: continuously spinning project-colored ring.
+Needs input: amber badge. Failed, unread: red badge. Done, unread: green dot.
+Priority is input → unread failure → running → unread completion. Several conversations
+in the highest-priority state produce a count. A ring spins whenever any conversation
+is running, even alongside an input/error badge. Automatic policy reviews are not
+shown as human input requests. The dock never approves a request on your behalf.
+
+CONVERSATIONS
+A single actionable conversation opens directly, even with other work running.
+Without actionable results, a single running conversation opens directly. Otherwise
+a list opens on the inner side of the selected avatar. Active conversations are
+ordered by priority then age; Recent shows 3 quiet conversations, or 2 when active.
+Archived chats are excluded. Opening a finished/failed result marks it read after
+successful handoff to Codex. The × dismisses it without opening; it moves to Recent.
+Input requests stay until answered in Codex. Right-click to dismiss finished results.
+New conversation opens a composer in the project folder and submits no prompt.
+A failed thread deep-link launch falls back to the project composer, explains the
+fallback and keeps the original result unread. An OS handoff cannot prove that
+Codex actually displayed the requested conversation.
+
+MOVE AND DUPLICATE
+Drag anywhere on the pill, including avatars. A 6-point movement cancels the click.
+Docks snap vertically left/right or horizontally top/bottom. A dashed preview shows
+the destination. Releasing at the physical screen edge hides that dock.
+Right-click → Duplicate dock creates a copy on another display, or at the opposite
+edge on one display. Move and hide each independently; task states and read markers
+stay synchronized. Close this dock removes a copy, always keeping at least one dock.
+All positions, screens and visibility modes are restored when the app restarts.
+
+VISIBILITY
+Auto-hide when quiet is the default. Always visible keeps a dock shown. Hide now
+leaves a thin edge tab. Hover to peek, leave to tuck after 500ms, click to keep shown.
+Started/finished/failed/input events reveal the relevant avatar for 4 seconds; auto
+mode stays visible while attention is needed. Reduce Motion is respected. Reset
+position returns a dock to the middle of the main display's right edge.
+
+OPTIONAL INPUT DETECTION
+The app reads running/finished/failed states without hooks. Explicit blocking questions
+can optionally be observed through passive hooks. This advanced option requires Apple
+Python 3 (Command Line Tools); normal release operation does not.
+Prepare the hook configuration for your own review:
+/usr/bin/python3 "$HOME/Applications/Codock.app/Contents/Resources/install_hooks.py"
+After reviewing hooks-prets.json in Application Support/Notifs, run again with --install.
+Review and explicitly approve trust with /hooks in Codex. Unrelated hooks are preserved,
+the previous hooks file is backed up, and trust records are never modified. For a custom
+Codex data directory add --home '/absolute/path/to/.codex'. Moving the app changes hook
+command paths and requires your own installation/review/trust approval again.
+Existing trusted commands are unchanged. Legacy Data/data-redirect.json redirects
+old development hooks to Application Support; keep their original bundle until
+replacing and explicitly reapproving those commands yourself.
+
+DATA AND LIMITATIONS
+No telemetry or network requests; Codex databases are read-only. Chat bodies are not
+read. Internal SQLite schemas can change. Brief read failures are retried silently;
+the last good snapshot is kept. After 30 seconds of continuous failure, Refresh delayed
+signals stale data. Reader diagnostics include technical errors and paths, not chats.
+Repeated unable-to-open-database errors have been observed; their cause is unresolved.
+Active settings/cache/history remain in ~/Library/Application Support/Notifs for upgrade
+compatibility. Do not share that directory or legacy Data backups. Project matching is
+lexical and does not traverse unrelated project folders. Existing projects/aliases and
+chat titles remain exactly as the user named them, regardless of interface language.
+
+macOS 13+. Public release builds include a standalone reader, with no Python or Xcode
+installation needed. Source builds use /usr/bin/python3 unless DOCK_BUNDLED_READER is
+provided. Optional hooks still require Apple Python. Development releases are ad-hoc
+signed, not notarized by Apple. Window ordering over some full-screen apps depends on
+macOS. Native system notifications are not integrated. No startup item is added.
+
+DEVELOP
+See CONTRIBUTING.md. Build with sh src/build.sh, install with
+python3 src/install_local.py --install, run Codock.app/Contents/MacOS/Codock --self-test,
+then python3 src/test_backend.py. Release packaging uses scripts/package_release.py
+and includes no settings, history, logs, hook approvals or credentials.

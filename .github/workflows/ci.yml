@@ -28,6 +28,8 @@ jobs:
       - name: Build native app
         run: sh src/build.sh
       - name: Model, geometry and configuration tests
-        run: '"Cloches Projets.app/Contents/MacOS/ProjectBells" --self-test'
+        run: '"Codock.app/Contents/MacOS/Codock" --self-test'
+      - name: Window lifecycle and shared notification tests
+        run: '"Codock.app/Contents/MacOS/Codock" --window-self-test'
       - name: Verify app signature
-        run: codesign --verify --deep --strict 'Cloches Projets.app'
+        run: codesign --verify --deep --strict 'Codock.app'

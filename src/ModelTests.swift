@@ -125,7 +125,7 @@ func runModelTests() {
     launch.open(task("a", "completed")); spin()
     callbacks.removeFirst()(false); callbacks.removeFirst()(false)
     check(launch.openingError != nil && launch.summary("p").done == 1, "Both launch failures keep original notice and allow retry")
-    check(ConversationTime.text(task: task("run", "inProgress", at: 100), now: Date(timeIntervalSince1970: 352)) == "En cours · 4:12", "Running duration is shown as minutes:seconds")
+    check(ConversationTime.text(task: task("run", "inProgress", at: 100), now: Date(timeIntervalSince1970: 352)) == "Running · 4:12", "Running duration is shown as minutes:seconds")
     check(ConversationTime.text(task: task("done", "completed", at: 100), now: Date(timeIntervalSince1970: 230)).contains("2 min"), "Completion shows time since finish")
     print("\(checks) conversation model, notification, recent-history and navigation checks passed")
 }

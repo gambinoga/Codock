@@ -30,7 +30,9 @@ jobs:
       - name: Build native app with standalone reader
         run: DOCK_BUNDLED_READER="$PWD/build/reader-dist/reader" sh src/build.sh
       - name: Test app
-        run: '"Cloches Projets.app/Contents/MacOS/ProjectBells" --self-test'
+        run: '"Codock.app/Contents/MacOS/Codock" --self-test'
+      - name: Window lifecycle and shared notification tests
+        run: '"Codock.app/Contents/MacOS/Codock" --window-self-test'
       - name: Package and checksum
         run: python scripts/package_release.py
       - uses: actions/upload-artifact@v4
@@ -54,4 +56,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" dist/* --verify-tag --title "Codex Dock $TAG" --notes-file docs/RELEASE_NOTES.md
+        run: gh release create "$TAG" dist/* --verify-tag --title "Codock $TAG" --notes-file docs/RELEASE_NOTES.md

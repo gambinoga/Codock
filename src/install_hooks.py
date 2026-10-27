@@ -6,11 +6,11 @@ import json
 from pathlib import Path
 import shlex
 
-DESCRIPTION = "Cloches Projets : observation passive des états"
+DESCRIPTION = "Codock: passive status observation"
 
 
 def merged_hooks(existing, root, app=None, data=None, home=None):
-    app = app or root / "Cloches Projets.app"
+    app = app or root / "Codock.app"
     data = data or root / "Data"
     resources = app / "Contents" / "Resources"
     command = "/usr/bin/python3 " + shlex.quote(str(resources / "hook.py")) + " " + shlex.quote(str(data))
@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--home", type=Path, default=Path.home() / ".codex")
     args = parser.parse_args()
     source = Path(__file__).resolve()
-    app = args.app or (source.parents[2] if source.parent.name == "Resources" else source.parents[1] / "Cloches Projets.app")
+    app = args.app or (source.parents[2] if source.parent.name == "Resources" else source.parents[1] / "Codock.app")
     root = app.parent
     data = args.data or Path.home() / "Library/Application Support/Notifs"
     data.mkdir(parents=True, exist_ok=True)
@@ -49,7 +49,7 @@ def main():
             stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             (data / ("hooks-backup-" + stamp + ".json")).write_text(original)
         target.write_text(merged)
-        print("Hooks installés. Revue et confiance explicites nécessaires via /hooks dans Codex.")
+        print("Hooks installed. Review and explicitly approve trust with /hooks in Codex.")
     else:
         print(data / "hooks-prets.json")
 

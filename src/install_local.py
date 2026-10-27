@@ -35,19 +35,46 @@ def migrate_data(legacy, support):
         os.replace(temp, marker)
 
 
+
+def retire_legacy_apps(apps, support, codex_home):
+    """Move obsolete installed names into recoverable backups, unless hooks use them."""
+    homes = {codex_home}
+    try:
+        config_path = support / "configuration.json"
+        config = json.loads(config_path.read_text()) if config_path.exists() else {}
+        if config.get("codexHome"):
+            homes.add(Path(config["codexHome"]).expanduser())
+        commands = "\n".join((home / "hooks.json").read_text() for home in homes if (home / "hooks.json").exists())
+    except (OSError, ValueError):
+        # Unknown configuration: preserve old executable paths rather than break trust.
+        return []
+    archived = []
+    for name in ("Cloches Projets.app", "Codex Dock.app"):
+        old = apps / name
+        spellings = [str(old), "$HOME/Applications/" + name, "${HOME}/Applications/" + name, "~/Applications/" + name]
+        if not old.exists() or any(value in commands for value in spellings):
+            continue
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        backup = support / "installation-backups" / ("legacy-" + stamp) / name
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old), str(backup))
+        archived.append(str(backup))
+    return archived
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--install", action="store_true", required=True)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    source = root / "Cloches Projets.app"
+    source = root / "Codock.app"
     apps = Path.home() / "Applications"
     support = Path.home() / "Library/Application Support/Notifs"
     destination = apps / source.name
     subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(source)], check=True)
     apps.mkdir(parents=True, exist_ok=True)
     migrate_data(root / "Data", support)
-    with tempfile.TemporaryDirectory(prefix=".notifs-install-", dir=apps) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".codock-install-", dir=apps) as temporary:
         staged = Path(temporary) / source.name
         shutil.copytree(source, staged, symlinks=True)
         subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(staged)], check=True)
@@ -65,7 +92,8 @@ def main():
                 raise
         else:
             os.replace(staged, destination)
-    print(json.dumps({"application": str(destination), "data": str(support)}))
+    archived = retire_legacy_apps(apps, support, Path.home() / ".codex")
+    print(json.dumps({"application": str(destination), "data": str(support), "archivedLegacyApps": archived}))
 
 
 if __name__ == "__main__":

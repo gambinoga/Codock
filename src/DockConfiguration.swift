@@ -12,11 +12,34 @@ struct Project: Codable, Equatable, Identifiable {
     var codexID: String?
     var roots: [String]
     var palette: Int
+    var customAccent: String? = nil
+    var customBackground: String? = nil
     static let palettes = [
         ["E6F1FB", "0C447C", "378ADD"], ["FAECE7", "712B13", "D85A30"],
-        ["E1F5EE", "085041", "1D9E75"], ["EEEDFE", "3C3489", "7F77DD"]
+        ["E1F5EE", "085041", "1D9E75"], ["EEEDFE", "3C3489", "7F77DD"],
+        ["E0F4FA", "07566B", "0891B2"], ["E8EDFF", "283B80", "4F64D8"],
+        ["FCE7F0", "831843", "DB2777"], ["FAE8FF", "701A75", "C026D3"],
+        ["FFF0DB", "783B10", "D97706"], ["F5F3CF", "575312", "9A8F20"],
+        ["E9EDF1", "334155", "64748B"], ["E0F5F2", "134E4A", "0D9488"]
     ]
-    var colors: [String] { Self.palettes[max(0, min(3, palette))] }
+    static let paletteNames = ["Blue", "Terracotta", "Mint", "Lavender", "Cyan", "Indigo", "Pink", "Fuchsia", "Orange", "Olive", "Slate", "Turquoise"]
+    var colors: [String] {
+        var result = Self.palettes[max(0, min(Self.palettes.count - 1, palette))]
+        if let customAccent {
+            let accent = NSColor.hex(customAccent)
+            result = [(accent.blended(withFraction: 0.88, of: .white) ?? accent).rgbHex,
+                      (accent.blended(withFraction: 0.72, of: .black) ?? accent).rgbHex, accent.rgbHex]
+        }
+        if let customBackground {
+            result[0] = customBackground
+            let background = NSColor.hex(customBackground)
+            // Keep the palette's text when readable; otherwise use black or white.
+            if background.contrastRatio(with: .hex(result[1])) < 4.5 {
+                result[1] = background.contrastRatio(with: .black) >= background.contrastRatio(with: .white) ? "000000" : "FFFFFF"
+            }
+        }
+        return result
+    }
     var color: Color { Color(nsColor: NSColor.hex(colors[2])) }
     static func migrateLegacy(home: URL) -> [Project] {
         guard let bytes = try? Data(contentsOf: home.appendingPathComponent(".codex-global-state.json")),
@@ -32,22 +55,46 @@ struct Project: Codable, Equatable, Identifiable {
 struct DockConfiguration: Codable, Equatable {
     var projects: [Project] = []
     var codexHome: String? = nil
+    var barBackground: String? = nil
+    var barColor: NSColor { barBackground.map { .hex($0) } ?? .dockSurface }
     var homeURL: URL {
         if let home = codexHome, !home.isEmpty { return URL(fileURLWithPath: (home as NSString).expandingTildeInPath) }
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
     }
     func validate() throws {
-        func invalid(_ message: String) -> NSError { NSError(domain: "Notifs", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
-        guard !projects.isEmpty else { throw invalid("Choisis au moins un projet.") }
-        guard Set(projects.map { $0.id }).count == projects.count else { throw invalid("Un projet ne peut apparaître qu’une fois.") }
-        guard Set(projects.compactMap { $0.codexID }).count == projects.compactMap({ $0.codexID }).count else { throw invalid("Ce projet Codex est déjà sélectionné.") }
+        func invalid(_ message: String) -> NSError { NSError(domain: "Codock", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
+        if let value = barBackground {
+            guard value.count == 6, value.allSatisfy({ "0123456789abcdefABCDEF".contains($0) }) else { throw invalid("The dock background must be a valid RGB hex color.") }
+        }
+        guard !projects.isEmpty else { throw invalid("Choose at least one project.") }
+        guard Set(projects.map { $0.id }).count == projects.count else { throw invalid("A project can only appear once.") }
+        guard Set(projects.compactMap { $0.codexID }).count == projects.compactMap({ $0.codexID }).count else { throw invalid("This Codex project is already selected.") }
         for project in projects {
-            guard !project.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, project.name.count <= 8 else { throw invalid("Chaque alias doit contenir entre 1 et 8 caractères.") }
-            guard !project.roots.isEmpty, project.roots.allSatisfy({ $0.hasPrefix("/") }) else { throw invalid("Choisis un dossier pour chaque projet.") }
+            for value in [project.customAccent, project.customBackground].compactMap({ $0 }) {
+                guard value.count == 6, value.allSatisfy({ "0123456789abcdefABCDEF".contains($0) }) else { throw invalid("Colors must be valid RGB hex codes.") }
+            }
+            guard !project.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, project.name.count <= 8 else { throw invalid("Each alias must contain 1–8 characters.") }
+            guard !project.roots.isEmpty, project.roots.allSatisfy({ $0.hasPrefix("/") }) else { throw invalid("Choose a folder for each project.") }
         }
     }
 }
 extension NSColor {
+    var relativeLuminance: CGFloat {
+        let rgb = usingColorSpace(.sRGB) ?? .black
+        func linear(_ value: CGFloat) -> CGFloat {
+            let value = min(1, max(0, value))
+            return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
+    }
+    func contrastRatio(with other: NSColor) -> CGFloat {
+        let first = relativeLuminance, second = other.relativeLuminance
+        return (max(first, second) + 0.05) / (min(first, second) + 0.05)
+    }
+    var rgbHex: String {
+        let rgb = usingColorSpace(.sRGB) ?? .black
+        return String(format: "%02X%02X%02X", Int(min(255, max(0, (rgb.redComponent * 255).rounded()))), Int(min(255, max(0, (rgb.greenComponent * 255).rounded()))), Int(min(255, max(0, (rgb.blueComponent * 255).rounded()))))
+    }
     static func hex(_ value: String) -> NSColor {
         let value = UInt32(value.replacingOccurrences(of: "#", with: ""), radix: 16) ?? 0
         return NSColor(srgbRed: CGFloat((value >> 16) & 255) / 255, green: CGFloat((value >> 8) & 255) / 255, blue: CGFloat(value & 255) / 255, alpha: 1)
@@ -67,11 +114,11 @@ enum DockStatus: String {
     case idle, running, approval, failed, done
     var label: String {
         switch self {
-        case .idle: return "Inactif"
-        case .running: return "En cours"
-        case .approval: return "Réponse requise — cliquer pour ouvrir"
-        case .failed: return "En erreur"
-        case .done: return "Terminé — cliquer pour consulter"
+        case .idle: return "Idle"
+        case .running: return "Running"
+        case .approval: return "Needs input — click to open"
+        case .failed: return "Failed"
+        case .done: return "Done — click to read"
         }
     }
 }

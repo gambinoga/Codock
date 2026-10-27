@@ -1,4 +1,8 @@
 import AppKit
+if CommandLine.arguments.contains("--window-self-test") {
+    runDockWindowTests()
+    exit(0)
+}
 if CommandLine.arguments.contains("--self-test") {
     runModelTests()
     runDockTests()

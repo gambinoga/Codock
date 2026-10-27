@@ -8,17 +8,17 @@ This is a developer/advanced-user option. Apple Python 3 (provided by Command Li
 Tools) is required for these optional hook scripts. The bundled reader does not
 silently add a new executable to your trusted hook commands.
 
-With the app installed in `~/Applications/Codex Dock.app`:
+With the app installed in `~/Applications/Codock.app`:
 
 ```sh
-/usr/bin/python3 "$HOME/Applications/Codex Dock.app/Contents/Resources/install_hooks.py"
+/usr/bin/python3 "$HOME/Applications/Codock.app/Contents/Resources/install_hooks.py"
 ```
 
 This prepares `hooks-prets.json` in `~/Library/Application Support/Notifs` without
 changing the active hooks file. Read it before choosing to install:
 
 ```sh
-/usr/bin/python3 "$HOME/Applications/Codex Dock.app/Contents/Resources/install_hooks.py" --install
+/usr/bin/python3 "$HOME/Applications/Codock.app/Contents/Resources/install_hooks.py" --install
 ```
 
 Then explicitly review/approve trust in Codex using `/hooks`. The installer preserves

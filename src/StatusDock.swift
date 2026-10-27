@@ -11,7 +11,7 @@ final class FloatingPanel: NSPanel {
 // A single native input surface owns the complete press/drag/release sequence.
 // Avatars are drawn here, so dragging from their labels never triggers a click.
 final class DockSurface: NSView {
-    weak var owner: AppDelegate?
+    weak var owner: DockController?
     var isTab = false
     private var tracking: NSTrackingArea?
     private var start: NSPoint?
@@ -74,7 +74,7 @@ final class DockSurface: NSView {
         if isTab {
             setAccessibilityElement(true)
             setAccessibilityRole(.button)
-            setAccessibilityLabel("Afficher le dock Notifs")
+            setAccessibilityLabel("Show Codock")
             return
         }
         accessibilityButtons = owner.model.projects.indices.filter { bounds.intersects(avatarRect($0)) }.map { index in
@@ -137,7 +137,7 @@ final class DockSurface: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let owner else { return }
         let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: isTab ? 6 : 32, yRadius: isTab ? 6 : 32)
-        NSColor.dockSurface.setFill(); path.fill()
+        owner.model.configuration.barColor.setFill(); path.fill()
         NSColor.labelColor.withAlphaComponent(0.12).setStroke(); path.lineWidth = 0.5; path.stroke()
         if isTab {
             let statuses = owner.model.projects.map { owner.model.status($0.id) }
@@ -208,12 +208,12 @@ final class DockSurface: NSView {
                     ring.excludedRect = NSRect(x: cutout.minX - ring.frame.minX, y: ring.frame.maxY - cutout.maxY, width: cutout.width, height: cutout.height)
                 }
                 let color = status == .approval ? NSColor.hex("BA7517") : status == .failed ? .hex("E24B4A") : status == .running ? .hex("888780") : .hex("639922")
-                NSColor.dockSurface.setFill()
+                owner.model.configuration.barColor.setFill()
                 NSBezierPath(roundedRect: badge.insetBy(dx: -2, dy: -2), xRadius: (diameter + 4) / 2, yRadius: (diameter + 4) / 2).fill()
                 color.setFill(); NSBezierPath(roundedRect: badge, xRadius: diameter / 2, yRadius: diameter / 2).fill()
                 symbol.draw(at: NSPoint(x: badge.midX - textSize.width / 2, y: badge.midY - textSize.height / 2), withAttributes: attrs)
             }
-            if (owner.peekProjects.contains(project.id) && owner.peeking) || owner.model.selected == project.id {
+            if (owner.peekProjects.contains(project.id) && owner.peeking) || owner.selected == project.id {
                 NSColor.hex(project.colors[2]).setStroke()
                 let ring = NSBezierPath(ovalIn: rect.insetBy(dx: -8, dy: -8)); ring.lineWidth = 2; ring.stroke()
             }
@@ -228,7 +228,10 @@ final class AvatarAccessibility: NSAccessibilityElement {
     override func accessibilityPerformPress() -> Bool { action?(); return true }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class DockController: NSObject, NSMenuDelegate {
+    weak var application: AppDelegate?
+    var placement: DockPlacement
+    var selected: String?
     var model: Model!
     var panel: FloatingPanel!
     var tab: FloatingPanel!
@@ -237,11 +240,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var surface: DockSurface!
     var tabSurface: DockSurface!
     var taskPanel: FloatingPanel?
-    var settingsWindow: NSWindow?
-    var statusItem: NSStatusItem!
-    var edge: DockEdge { model.saved.edge ?? .right }
-    var mode: DockMode { model.saved.mode ?? .auto }
-    var offset: Double { model.saved.offset ?? 0.5 }
+    var edge: DockEdge { placement.edge }
+    var mode: DockMode { placement.mode }
+    var offset: Double { placement.offset }
     var hovered: String?
     var peekProjects = Set<String>()
     var peeking = false
@@ -258,13 +259,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var mouseMonitor: Any?
     private var clickMonitor: Any?
     private var localClickMonitor: Any?
-    private var hotkey: EventHotKeyRef?
-    private var hotkeyHandler: EventHandlerRef?
     private var screenObserver: NSObjectProtocol?
     private var screenObserverMotion: NSObjectProtocol?
-    var shortcutAvailable = true
     var screen: NSScreen {
-        NSScreen.screens.first { screenIdentity($0) == model.saved.screenID } ?? NSScreen.main ?? NSScreen.screens[0]
+        NSScreen.screens.first { screenIdentity($0) == placement.screenID } ?? NSScreen.main ?? NSScreen.screens[0]
     }
     func screenIdentity(_ screen: NSScreen) -> String { String(describing: screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] ?? "main") }
     func makePanel() -> FloatingPanel {
@@ -276,18 +274,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         window.animationBehavior = .none
         return window
     }
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
-        // Runtime data never lives beside the development checkout in Documents.
-        let data = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Notifs")
-        model = Model(resources: Bundle.main.resourceURL!, data: data)
-        model.didOpenTask = { [weak self] in self?.closeTasks() }
-        model.didReceiveEvents = { [weak self] ids in self?.peek(ids) }
-        model.didFallbackOpen = { [weak self] project, message in
-            self?.navigationHint = message
-            self?.peek([project])
-        }
-        model.didChangeConfiguration = { [weak self] in self?.closeTasks(); self?.refresh(animated: false) }
+    init(model: Model, placement: DockPlacement, application: AppDelegate) {
+        self.model = model; self.placement = placement; self.application = application
+        super.init()
         panel = makePanel(); tab = makePanel(); tooltip = makePanel(); ghost = makePanel()
         tooltip.ignoresMouseEvents = true; ghost.ignoresMouseEvents = true
         surface = DockSurface(); surface.owner = self; panel.contentView = surface
@@ -295,12 +284,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for publisher in [model.$tasks.map { _ in () }.eraseToAnyPublisher(), model.$saved.map { _ in () }.eraseToAnyPublisher(), model.$openingTask.map { _ in () }.eraseToAnyPublisher(), model.$configuration.map { _ in () }.eraseToAnyPublisher()] {
             publisher.receive(on: DispatchQueue.main).sink { [weak self] in self?.refresh() }.store(in: &subscriptions)
         }
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "bell.badge", accessibilityDescription: "Notifs")
-        statusItem.button?.title = " Notifs"
-        statusItem.button?.toolTip = "Notifs — projets Codex"
-        statusItem.menu = contextMenu()
-        registerShortcut()
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.closeTasks() }
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .mouseMoved]) { [weak self] event in
             if let self {
@@ -313,26 +296,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.refresh(animated: false) }
         screenObserverMotion = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main) { [weak self] _ in self?.surface.needsDisplay = true }
         refresh(animated: false)
-        model.start()
-        if model.projects.isEmpty { showSettings() }
     }
-    func registerShortcut() {
-        var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let pointer = Unmanaged.passUnretained(self).toOpaque()
-        let status = InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
-            guard let context else { return OSStatus(eventNotHandledErr) }
-            let owner = Unmanaged<AppDelegate>.fromOpaque(context).takeUnretainedValue()
-            DispatchQueue.main.async { owner.toggleShown() }
-            return noErr
-        }, 1, &event, pointer, &hotkeyHandler)
-        let identifier = EventHotKeyID(signature: 0x4E544653, id: 1)
-        shortcutAvailable = status == noErr && RegisterEventHotKey(UInt32(kVK_ANSI_J), UInt32(cmdKey | optionKey), identifier, GetApplicationEventTarget(), 0, &hotkey) == noErr
-    }
-    func applicationWillTerminate(_ notification: Notification) {
+    func dispose() {
+        tuck?.cancel(); peekEnd?.cancel(); animationGeneration += 1
+        subscriptions.removeAll()
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         if let screenObserverMotion { NSWorkspace.shared.notificationCenter.removeObserver(screenObserverMotion) }
-        if let hotkey { UnregisterEventHotKey(hotkey) }
-        if let hotkeyHandler { RemoveEventHandler(hotkeyHandler) }
         for monitor in [mouseMonitor, clickMonitor, localClickMonitor].compactMap({ $0 }) { NSEvent.removeMonitor(monitor) }
+        closeTasks()
+        for window in [panel, tab, tooltip, ghost].compactMap({ $0 }) { window.orderOut(nil) }
+        panel.contentView = nil; tab.contentView = nil
+        panel = nil; tab = nil; tooltip = nil; ghost = nil
     }
     func refresh(animated: Bool = true) {
         guard panel != nil, !isDragging else { return }
@@ -368,19 +342,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             surface.refreshAccessibility(); surface.needsDisplay = true
         }
         updateTooltip(); layoutTasks(); updateClickThrough()
-        if !menuOpen { statusItem?.menu = contextMenu() }
+        if !menuOpen { application?.refreshMenu() }
         writeDiagnostics()
     }
     func writeDiagnostics() {
         func rect(_ r: NSRect) -> [String: CGFloat] { ["x": r.minX, "y": r.minY, "width": r.width, "height": r.height] }
         var state: [String: Any] = ["edge": edge.rawValue, "mode": mode.rawValue, "hidden": isHidden, "bar": rect(panel.frame), "tab": rect(tab.frame), "listVisible": taskPanel != nil]
         if let list = taskPanel { state["list"] = rect(list.frame); state["overlapsBells"] = panel.frame.intersects(list.frame) }
-        if let bytes = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]) { try? bytes.write(to: model.data.appendingPathComponent("panel-state.json"), options: .atomic) }
+        if let bytes = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]) {
+            try? bytes.write(to: model.data.appendingPathComponent("panel-state-" + placement.id + ".json"), options: .atomic)
+            if application?.docks.first === self { try? bytes.write(to: model.data.appendingPathComponent("panel-state.json"), options: .atomic) }
+        }
     }
     func updateClickThrough() {
         guard panel != nil, !isDragging else { return }
         let point = panel.convertPoint(fromScreen: NSEvent.mouseLocation)
         panel.ignoresMouseEvents = !NSBezierPath(roundedRect: NSRect(origin: .zero, size: panel.frame.size), xRadius: 32, yRadius: 32).contains(point)
+    }
+    func showNavigationHint(_ message: String, project: String) {
+        navigationHint = message; peek([project])
     }
     func peek(_ ids: [String]) {
         let valid = ids.filter { id in model.projects.contains { $0.id == id } }
@@ -411,9 +391,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func setMode(_ mode: DockMode) {
         closeTasks()
         peekEnd?.cancel(); tuck?.cancel(); peeking = false; peekProjects = []; hoverPeek = false; hovered = nil
-        model.saved.mode = mode; model.persist(); refresh()
+        placement.mode = mode; persistPlacement(); refresh()
     }
-    @objc func toggleShown() { setMode(isHidden ? .visible : .hidden) }
+    var hidden: Bool { isHidden }
+    var menuShowing: Bool { menuOpen }
+    func persistPlacement() { application?.persistPlacements() }
     func beginDrag() {
         closeTasks(); tuck?.cancel(); hovered = nil; tooltip.orderOut(nil)
         isDragging = true; panel.ignoresMouseEvents = false
@@ -421,17 +403,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     func drag(to point: NSPoint, start: NSPoint, frame: NSRect) {
         let targetScreen = NSScreen.screens.first { $0.frame.contains(point) } ?? screen
-        model.saved.screenID = screenIdentity(targetScreen)
+        placement.screenID = screenIdentity(targetScreen)
         let nextEdge = DockGeometry.nearest(point, screen: targetScreen.visibleFrame)
         let wasVertical = frame.height > frame.width
         var fx = (start.x - frame.minX) / frame.width, fy = (start.y - frame.minY) / frame.height
         if wasVertical != nextEdge.vertical { swap(&fx, &fy) }
-        model.saved.edge = nextEdge
+        placement.edge = nextEdge
         let size = DockGeometry.frame(screen: targetScreen.visibleFrame, edge: nextEdge, offset: offset, count: model.projects.count).size
         let moving = NSRect(x: point.x - min(1, max(0, fx)) * size.width, y: point.y - min(1, max(0, fy)) * size.height, width: size.width, height: size.height)
         panel.setFrame(moving, display: true)
         surface.needsDisplay = true
-        model.saved.offset = DockGeometry.offset(frame: moving, screen: targetScreen.visibleFrame, edge: nextEdge)
+        placement.offset = DockGeometry.offset(frame: moving, screen: targetScreen.visibleFrame, edge: nextEdge)
         // macOS clamps the pointer to physical screen edges; crossing the dock's
         // center beyond that edge is represented by the pointer reaching its last 2pt.
         let outer = targetScreen.frame.insetBy(dx: 2, dy: 2)
@@ -449,19 +431,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     func endDrag() {
         isDragging = false; ghost.orderOut(nil); NSCursor.pop()
-        if releaseToHide { model.saved.mode = .hidden; hoverPeek = false; peeking = false }
-        model.persist(); refresh()
+        if releaseToHide { placement.mode = .hidden; hoverPeek = false; peeking = false }
+        persistPlacement(); refresh()
     }
     func activate(_ project: Project) {
         guard model.openingTask == nil else { return }
         if let target = model.directTarget(project.id) { closeTasks(); model.open(target) { [weak self] in self?.showTasks(project) } }
-        else if model.selected == project.id { closeTasks() }
+        else if selected == project.id { closeTasks() }
         else { showTasks(project) }
     }
     func showTasks(_ requested: Project) {
         guard let project = model.projects.first(where: { $0.id == requested.id }) else { return }
         closeTasks(); hovered = nil; tooltip.orderOut(nil)
-        model.selected = project.id
+        selected = project.id
         let detail = makePanel()
         let frame = tasksFrame(project: project)
         detail.contentView = TaskHostingView(rootView: TasksPanel(model: model, project: project, panelSize: frame.size))
@@ -482,11 +464,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func closeTasks() {
         if let taskPanel { panel?.removeChildWindow(taskPanel); taskPanel.orderOut(nil) }
         let hadList = taskPanel != nil
-        taskPanel = nil; model?.selected = nil
+        taskPanel = nil; selected = nil
         if hadList { DispatchQueue.main.async { self.refresh() } }
     }
     func layoutTasks() {
-        guard let detail = taskPanel, let project = model.projects.first(where: { $0.id == model.selected }) else { return }
+        guard let detail = taskPanel, let project = model.projects.first(where: { $0.id == selected }) else { return }
         let frame = tasksFrame(project: project)
         detail.setFrame(frame, display: true)
         if let host = detail.contentView as? NSHostingView<TasksPanel>, host.rootView.panelSize != frame.size { host.rootView = TasksPanel(model: model, project: project, panelSize: frame.size) }
@@ -496,7 +478,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !isHidden, !isDragging, !menuOpen, taskPanel == nil, let id,
               let index = model.projects.firstIndex(where: { $0.id == id }) else { tooltip?.orderOut(nil); return }
         let project = model.projects[index]
-        let hint = navigationHint ?? model.directTarget(id).map { "Cliquer pour ouvrir « \($0.title) »" } ?? "Cliquer pour voir les conversations"
+        let hint = navigationHint ?? model.directTarget(id).map { "Click to open “\($0.title)”" } ?? "Click to see conversations"
         let heading = project.name + " · " + model.summary(id).label
         let label = heading + "\n" + hint
         let field = NSTextField(wrappingLabelWithString: label)
@@ -520,15 +502,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let scopedCount = project.map { model.finished($0.id).count } ?? 0
         let allCount = model.finished().count
         if let project, scopedCount > 0 {
-            let item = NSMenuItem(title: "Acquitter les résultats de \(project.name) (\(scopedCount))", action: #selector(dismissFinished(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: "Dismiss finished in \(project.name) (\(scopedCount))", action: #selector(dismissFinished(_:)), keyEquivalent: "")
             item.target = self; item.representedObject = project.id; menu.addItem(item)
         }
         if allCount > 0 && allCount != scopedCount {
-            let item = NSMenuItem(title: "Acquitter tous les résultats (\(allCount))", action: #selector(dismissFinished(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: "Dismiss all finished (\(allCount))", action: #selector(dismissFinished(_:)), keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
         if menu.items.count > 0 { menu.addItem(.separator()) }
-        for (title, mode) in [("Masquer maintenant", DockMode.hidden), ("Masquer quand inactif", .auto), ("Toujours visible", .visible)] {
+        for (title, mode) in [("Hide now", DockMode.hidden), ("Auto-hide when quiet", .auto), ("Always visible", .visible)] {
             let item = NSMenuItem(title: title, action: #selector(chooseMode(_:)), keyEquivalent: "")
             item.target = self; item.representedObject = mode.rawValue
             if mode == .hidden { item.keyEquivalent = "j"; item.keyEquivalentModifierMask = [.option, .command] }
@@ -536,12 +518,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item)
         }
         menu.addItem(.separator())
-        let show = NSMenuItem(title: "Afficher le dock", action: #selector(showDock), keyEquivalent: ""); show.target = self; menu.addItem(show)
-        let reset = NSMenuItem(title: "Réinitialiser la position", action: #selector(resetPosition), keyEquivalent: ""); reset.target = self; menu.addItem(reset)
-        let settings = NSMenuItem(title: "Configurer les projets…", action: #selector(showSettings), keyEquivalent: ""); settings.target = self; menu.addItem(settings)
+        let show = NSMenuItem(title: "Show dock", action: #selector(showDock), keyEquivalent: ""); show.target = self; menu.addItem(show)
+        let duplicate = NSMenuItem(title: "Duplicate dock", action: #selector(duplicateDock), keyEquivalent: ""); duplicate.target = self; menu.addItem(duplicate)
+        if (application?.docks.count ?? 1) > 1 {
+            let remove = NSMenuItem(title: "Close this dock", action: #selector(removeDock), keyEquivalent: ""); remove.target = self; menu.addItem(remove)
+        }
+        let reset = NSMenuItem(title: "Reset position", action: #selector(resetPosition), keyEquivalent: ""); reset.target = self; menu.addItem(reset)
+        let settings = NSMenuItem(title: "Configure projects…", action: #selector(showSettings), keyEquivalent: ""); settings.target = self; menu.addItem(settings)
         menu.addItem(.separator())
-        let restart = NSMenuItem(title: "Redémarrer Notifs", action: #selector(restartApp), keyEquivalent: ""); restart.target = self; menu.addItem(restart)
-        let quit = NSMenuItem(title: "Quitter Notifs", action: #selector(quit), keyEquivalent: "q"); quit.target = self; menu.addItem(quit)
+        let restart = NSMenuItem(title: "Restart Codock", action: #selector(restartApp), keyEquivalent: ""); restart.target = self; menu.addItem(restart)
+        let quit = NSMenuItem(title: "Quit Codock", action: #selector(quit), keyEquivalent: "q"); quit.target = self; menu.addItem(quit)
         return menu
     }
     func showContextMenu(event: NSEvent, view: NSView, project: Project? = nil) {
@@ -552,25 +538,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) { menuOpen = true; tooltip.orderOut(nil) }
     func menuDidClose(_ menu: NSMenu) { menuOpen = false; DispatchQueue.main.async { self.refresh() } }
     @objc func chooseMode(_ sender: NSMenuItem) { if let raw = sender.representedObject as? String, let mode = DockMode(rawValue: raw) { setMode(mode) } }
-    @objc func resetPosition() { closeTasks(); model.saved.edge = .right; model.saved.offset = 0.5; model.saved.screenID = screenIdentity(NSScreen.main ?? screen); model.persist(); refresh() }
-    @objc func showSettings() {
-        if let settingsWindow { settingsWindow.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 560), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Notifs — Projets"; window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: ProjectSettings(model: model, shortcutAvailable: shortcutAvailable))
-        settingsWindow = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
-    }
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { setMode(.visible); return true }
+    @objc func resetPosition() { closeTasks(); placement.edge = .right; placement.offset = 0.5; placement.screenID = screenIdentity(NSScreen.main ?? screen); persistPlacement(); refresh() }
+    @objc func showSettings() { application?.showSettings() }
     @objc func showDock() { setMode(.visible) }
-    @objc func restartApp() {
-        let helper = Process()
-        helper.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // Positional arguments preserve spaces and never interpret the bundle path as shell code.
-        helper.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$2\"", "notifs-restart", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundleURL.path]
-        do { try helper.run(); NSApp.terminate(nil) }
-        catch { let alert = NSAlert(error: error); alert.runModal() }
-    }
-    @objc func quit() { NSApp.terminate(nil) }
+    @objc func duplicateDock() { application?.duplicate(self) }
+    @objc func removeDock() { application?.remove(self) }
+    @objc func restartApp() { application?.restartApp() }
+    @objc func quit() { application?.quit() }
+
 }
 struct SnapPreview: View {
     let hidden: Bool
@@ -578,7 +553,7 @@ struct SnapPreview: View {
         ZStack {
             RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.12))
             RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            if hidden { Text("Relâcher pour masquer").font(.system(size: 12)).foregroundColor(.primary) }
+            if hidden { Text("Release to hide").font(.system(size: 12)).foregroundColor(.primary) }
         }
     }
 }

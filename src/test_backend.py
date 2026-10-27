@@ -69,6 +69,34 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(actual["tasks"], expected["tasks"])
         self.assertEqual(actual["availableProjects"], expected["availableProjects"])
 
+    def test_rename_archives_old_app_without_changing_trusted_source_hooks(self):
+        apps = self.root / "Applications"
+        old = apps / "Cloches Projets.app"
+        old.mkdir(parents=True)
+        (old / "marker").write_text("old bundle")
+        # An approved hook using a different source bundle does not require this installed copy.
+        (self.home / "hooks.json").write_text('{"command":"/source/Cloches Projets.app/Contents/Resources/hook.py"}')
+        support = self.root / "support"
+        support.mkdir()
+        (support / "configuration.json").write_text("{}")
+        archived = local_installer.retire_legacy_apps(apps, support, self.home)
+        self.assertFalse(old.exists())
+        self.assertEqual((Path(archived[0]) / "marker").read_text(), "old bundle")
+        self.assertIn("/source/", (self.home / "hooks.json").read_text())
+
+    def test_rename_preserves_installed_app_referenced_by_trusted_hooks(self):
+        apps = self.root / "Applications"
+        old = apps / "Codex Dock.app"
+        old.mkdir(parents=True)
+        hooks = json.dumps({"command": str(old / "Contents/Resources/hook.py")})
+        (self.home / "hooks.json").write_text(hooks)
+        support = self.root / "support"
+        support.mkdir()
+        (support / "configuration.json").write_text("{}")
+        self.assertEqual(local_installer.retire_legacy_apps(apps, support, self.home), [])
+        self.assertTrue(old.exists())
+        self.assertEqual((self.home / "hooks.json").read_text(), hooks)
+
     def test_latest_turn_exact_project_and_no_subagents(self):
         result = backend.snapshot(self.home, self.data)
         self.assertEqual([(t["id"], t["project"], t["turn"]) for t in result["tasks"]],

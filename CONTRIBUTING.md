@@ -1,4 +1,4 @@
-# Contributing to Codex Dock
+# Contributing to Codock
 
 Bug reports, documentation and focused pull requests are welcome. The maintainer is
 [@gambinoga](https://github.com/gambinoga). Contributors work through forks; the maintainer
@@ -12,24 +12,28 @@ reviews and merges. Do not enable auto-merge, merge somebody else's PR, or reque
 - Git; a GitHub account is needed only to submit a PR.
 
 ```sh
-git clone https://github.com/YOUR-LOGIN/codex-dock.git
-cd codex-dock
+git clone https://github.com/YOUR-LOGIN/codock.git
+cd codock
 git switch -c fix/short-description
 sh src/build.sh
-'Cloches Projets.app/Contents/MacOS/ProjectBells' --self-test
+'Codock.app/Contents/MacOS/Codock' --self-test
+# Optional window integration checks (temporary synthetic state; requires a WindowServer session):
+'Codock.app/Contents/MacOS/Codock' --window-self-test
 python3 src/test_backend.py
 ```
 
-The development bundle keeps its legacy filename `Cloches Projets.app` and executable
-`ProjectBells` so existing local hook commands remain valid. Release packaging renames
-the bundle to Codex Dock.app; it does not change the executable or bundle identifier.
+The development and release bundle is `Codock.app`, with executable `Codock`.
+The historical bundle identifier and `Application Support/Notifs` directory are
+kept so upgrades preserve settings, acknowledgements, colors, cloned dock positions
+and macOS privacy identity. Existing trusted hook commands are never rewritten.
+If they reference an old development bundle, retain that bundle until explicitly
+reinstalling/reapproving the hook command yourself.
 
-To test the development app, copy it to Applications before launching it. The dock
-must stay outside protected Documents/Downloads folders during runtime. Development
-and release builds share the same `Application Support/Notifs` data: back it up if
-experimenting with configuration/state formats, and run only one copy at a time.
-`src/install_local.py --install` is the original developer installer; it preserves
-legacy data and installs `~/Applications/Cloches Projets.app`, not the public release name.
+Copy the app to Applications before launching it. Avoid running it from protected
+Documents/Downloads folders. Back up shared application state before experimenting
+with configuration formats, and run only one installed version at a time.
+`python3 src/install_local.py --install` installs `~/Applications/Codock.app`, preserves
+existing data, and archives old installed names when no trusted hook references them.
 
 ## Architecture
 
@@ -61,7 +65,7 @@ python3 -m venv .venv
 PYINSTALLER_CONFIG_DIR="$PWD/build/pyinstaller-cache" .venv/bin/python -m PyInstaller --clean --noconfirm --onefile --name reader --distpath build/reader-dist --workpath build/reader-work --specpath build src/backend.py
 DOCK_BUNDLED_READER="$PWD/build/reader-dist/reader" sh src/build.sh
 DOCK_READER_BINARY="$PWD/build/reader-dist/reader" .venv/bin/python src/test_backend.py
-'Cloches Projets.app/Contents/MacOS/ProjectBells' --self-test
+'Codock.app/Contents/MacOS/Codock' --self-test
 .venv/bin/python scripts/package_release.py
 ```
 

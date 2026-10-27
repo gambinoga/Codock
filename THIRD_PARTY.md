@@ -1,6 +1,6 @@
 # Third-party software
 
-Codex Dock is an independent MIT-licensed project, not an OpenAI product.
+Codock is an independent MIT-licensed project, not an OpenAI product.
 It uses Apple's macOS frameworks. Release packages include an isolated Python
 runtime packaged with PyInstaller for the local metadata reader; users do not
 need to install Python or Apple developer tools to run a release.

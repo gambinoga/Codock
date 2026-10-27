@@ -16,11 +16,11 @@ struct ThreadSummary: Equatable {
     var hasBadge: Bool { priority == 1 || priority == 3 || priority == 4 || (priority == 2 && running > 1) }
     var label: String {
         var parts: [String] = []
-        if approvals > 0 { parts.append("\(approvals) à répondre") }
-        if failures > 0 { parts.append("\(failures) erreur\(failures == 1 ? "" : "s")") }
-        if running > 0 { parts.append("\(running) en cours") }
-        if done > 0 { parts.append("\(done) terminé\(done == 1 ? "" : "s")") }
-        return parts.isEmpty ? "Rien en cours" : parts.joined(separator: " · ")
+        if approvals > 0 { parts.append("\(approvals) need\(approvals == 1 ? "s" : "") input") }
+        if failures > 0 { parts.append("\(failures) failed") }
+        if running > 0 { parts.append("\(running) running") }
+        if done > 0 { parts.append("\(done) done") }
+        return parts.isEmpty ? "Nothing running" : parts.joined(separator: " · ")
     }
 }
 struct ConversationLayout {
@@ -51,10 +51,10 @@ struct ConversationTime {
         let elapsed = max(0, now.timeIntervalSince1970 - task.activityTime)
         if task.status == "inProgress" {
             let seconds = Int(elapsed)
-            return "En cours · \(seconds / 60):\(String(format: "%02d", seconds % 60))"
+            return "Running · \(seconds / 60):\(String(format: "%02d", seconds % 60))"
         }
         let minutes = Int(elapsed / 60)
-        let ago = minutes < 1 ? "à l’instant" : minutes < 60 ? "il y a \(minutes) min" : minutes < 1440 ? "il y a \(minutes / 60) h" : "il y a \(minutes / 1440) j"
+        let ago = minutes < 1 ? "just now" : minutes < 60 ? "\(minutes) min ago" : minutes < 1440 ? "\(minutes / 60) h ago" : "\(minutes / 1440) d ago"
         return task.stateLabel + " · " + ago
     }
 }

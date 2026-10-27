@@ -37,6 +37,36 @@ func runDockTests() {
     check((try? DockConfiguration().validate()) == nil, "At least one project is required")
     let many = (0..<100).map { Project(id: String($0), name: "P" + String($0), roots: ["/tmp/p" + String($0)], palette: $0 % 4) }
     check((try? DockConfiguration(projects: many).validate()) != nil, "Project configuration has no upper limit")
+    var barConfiguration = config
+    barConfiguration.barBackground = "182C40"
+    let restoredBarConfiguration = try! JSONDecoder().decode(DockConfiguration.self, from: JSONEncoder().encode(barConfiguration))
+    check(restoredBarConfiguration.barBackground == "182C40" && restoredBarConfiguration.barColor.rgbHex == "182C40", "The entire bar's background persists independently of project colors")
+    barConfiguration.barBackground = "invalid"
+    check((try? barConfiguration.validate()) == nil, "Invalid bar backgrounds are rejected")
+    let legacy = try! JSONDecoder().decode(Project.self, from: Data("{\"id\":\"legacy\",\"name\":\"OLD\",\"roots\":[\"/tmp/old\"],\"palette\":3}".utf8))
+    check(legacy.customAccent == nil && legacy.colors == Project.palettes[3], "Existing project palettes retain their exact colors")
+    var custom = legacy
+    custom.customAccent = "EB38A6"
+    let restoredColor = try! JSONDecoder().decode(Project.self, from: JSONEncoder().encode(custom))
+    check(restoredColor.customAccent == "EB38A6" && restoredColor.colors[2] == "EB38A6", "Custom RGB accent survives configuration roundtrip")
+    check(restoredColor.colors[0] != restoredColor.colors[1], "Custom color keeps a distinct fill and text")
+    custom.customAccent = nil; custom.palette = Project.palettes.count - 1
+    check(custom.colors == Project.palettes.last!, "New preset palettes are reachable beyond the original four")
+    custom.customAccent = "invalid"
+    check((try? DockConfiguration(projects: [custom]).validate()) == nil, "Invalid custom colors cannot be saved")
+    check(Project.paletteNames.count == Project.palettes.count, "Every palette has a selector label")
+    var backgroundProject = legacy
+    backgroundProject.customBackground = "101010"
+    let savedBackground = try! JSONDecoder().decode(Project.self, from: JSONEncoder().encode(backgroundProject))
+    check(savedBackground.colors[0] == "101010" && savedBackground.colors[2] == legacy.colors[2], "Custom avatar background persists independently of the accent")
+    for hex in ["000000", "FFFFFF", "FF0000", "008000", "777777", "4C208A"] {
+        backgroundProject.customBackground = hex
+        check(NSColor.hex(backgroundProject.colors[0]).contrastRatio(with: .hex(backgroundProject.colors[1])) >= 4.5, "Avatar label remains readable on custom backgrounds")
+    }
+    backgroundProject.customBackground = nil
+    check(backgroundProject.colors == legacy.colors, "Automatic background restores the original palette")
+    backgroundProject.customBackground = "bad!"
+    check((try? DockConfiguration(projects: [backgroundProject]).validate()) == nil, "Invalid background colors are rejected")
     config.projects[0].name = ""
     check((try? config.validate()) == nil, "Empty aliases are rejected")
     config.projects[0].name = "123456789"
@@ -54,6 +84,20 @@ func runDockTests() {
             check(edge == .left ? pop.minX > anchor.maxX : edge == .right ? pop.maxX < anchor.minX : edge == .top ? pop.maxY < anchor.minY : pop.minY > anchor.maxY, "Popover follows inner side of selected avatar")
         }
     }
+    var previousLayout = SavedState()
+    previousLayout.edge = .bottom; previousLayout.offset = 0.25; previousLayout.mode = .hidden; previousLayout.screenID = "display-a"
+    let migratedLayout = previousLayout.restoredDocks[0]
+    check(migratedLayout.edge == .bottom && migratedLayout.offset == 0.25 && migratedLayout.mode == .hidden && migratedLayout.screenID == "display-a", "Legacy single dock keeps its placement and visibility")
+    let secondDisplay = migratedLayout.duplicate(on: ["display-a", "display-b"], currentScreen: "display-a")
+    check(secondDisplay.id != migratedLayout.id && secondDisplay.screenID == "display-b" && secondDisplay.mode == .visible, "Duplicate has a unique identity and appears on the other display")
+    check(secondDisplay.edge == migratedLayout.edge && secondDisplay.offset == migratedLayout.offset, "Second display clone preserves relative placement")
+    let sameDisplay = migratedLayout.duplicate(on: ["display-a"], currentScreen: "display-a")
+    check(sameDisplay.screenID == "display-a" && sameDisplay.edge == .top, "Single-screen clone appears at the opposite edge")
+    previousLayout.docks = [migratedLayout, secondDisplay]
+    let restoredLayout = try! JSONDecoder().decode(SavedState.self, from: JSONEncoder().encode(previousLayout))
+    check(restoredLayout.restoredDocks == [migratedLayout, secondDisplay], "All dock positions and modes survive restart")
+    previousLayout.docks = []
+    check(previousLayout.restoredDocks.count == 1, "An empty layout never leaves the app without a recoverable dock")
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try! FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }

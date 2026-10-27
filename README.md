@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="assets/codex-dock.svg" width="88" alt="Codex Dock icon">
-  <h1>Codex Dock</h1>
+  <img src="assets/codock.svg" width="88" alt="Codock icon">
+  <h1>Codock</h1>
   <p>A small floating macOS dock for your local Codex projects.</p>
 </div>
 
@@ -12,13 +12,13 @@ An independent community project, not an official OpenAI application.
 **No Python, Xcode, API key, or subscription to this project is required for a release build.**
 You do need a working local Codex installation whose metadata uses the supported schema.
 
-1. Download the ZIP for your Mac from **[the latest release](https://github.com/gambinoga/codex-dock/releases/latest)**:
-   - **Apple Silicon** (M1/M2/M3/M4/…): `Codex-Dock-macOS-arm64.zip`.
-   - **Intel**: `Codex-Dock-macOS-x86_64.zip`.
-2. Quit any previous copy, then unzip it and move **Codex Dock.app** to `~/Applications` (create that folder if necessary), or `/Applications`.
+1. Download the ZIP for your Mac from **[the latest release](https://github.com/gambinoga/codock/releases/latest)**:
+   - **Apple Silicon** (M1/M2/M3/M4/…): `Codock-macOS-arm64.zip`.
+   - **Intel**: `Codock-macOS-x86_64.zip`.
+2. Quit any previous copy, then unzip it and move **Codock.app** to `~/Applications` (create that folder if necessary), or `/Applications`.
 3. Open it, choose your Codex projects or project folders, set their short aliases and colors, and save.
 
-**macOS 13 or later.** These initial builds are ad-hoc signed, not Apple notarized.
+**macOS 13 or later. The interface is in English.** These initial builds are ad-hoc signed, not Apple notarized.
 macOS may block the first launch: follow [Apple's instructions for opening an app from an identified source](https://support.apple.com/en-us/102445), only if you trust this repository.
 The installer never removes quarantine or changes Gatekeeper or privacy permissions.
 An organization-managed Mac may require approval from its administrator.
@@ -30,13 +30,15 @@ The app runs locally; it does not upload your chats or ask for your OpenAI crede
 
 ## Use it
 
-- Configure **one or more projects**, without a fixed maximum. Choose an alias (1–8 characters) and one of four reusable palettes. Scroll the dock when it exceeds the screen edge.
+- Configure **one or more projects**, without a fixed maximum. Choose an alias (1–8 characters) and one of twelve reusable palettes, or any custom color using the native macOS color picker. Choose the avatar background independently with **Background**, or restore its automatic background. Text contrast adapts automatically. Scroll the dock when it exceeds the screen edge.
+- Change **Dock background** in settings to customize the whole pill; **Automatic** restores the system light/dark background. All cloned docks share this setting.
+- Right-click **Duplicate dock** to create another dock. With multiple displays it appears on the other display; with one display it starts on the opposite edge. Move each independently; projects and read/unread state stay synchronized. **Close this dock** removes a copy while keeping at least one dock. Positions and visibility modes survive restart.
 - Drag the pill or any avatar to move it. It snaps vertically to the left/right edge or horizontally to the top/bottom.
 - Hover an avatar for a summary. Click to open the only actionable conversation; with several candidates, open the conversation list.
 - The list groups active conversations and recent read results. Opening or dismissing a finished/failed result marks it read; requests for input remain until answered in Codex.
-- Use **Notifs** in the macOS menu bar to show the dock, configure projects, restart or quit. The legacy menu label is retained in this first public release.
+- Use the **bell icon** in the macOS menu bar to show the dock, configure projects, restart or quit.
 - **⌥⌘J** shows/hides the dock. Right-click for visibility modes. Auto-hide leaves a small edge tab; events reveal the dock for a few seconds.
-- After quitting, reopen Codex Dock.app from Applications. Nothing is added to login items automatically.
+- After quitting, reopen Codock.app from Applications. Nothing is added to login items automatically.
 
 | State | Appearance |
 | --- | --- |
@@ -71,7 +73,7 @@ Input-request detection can optionally use passive Codex hooks. This is **opt-in
 - If the global shortcut is already registered by another app, use the menu bar instead.
 - If the app is running but its icon is not visible, macOS may have insufficient menu bar space. The floating edge tab remains available; opening the app again shows the dock.
 
-[Report a bug](https://github.com/gambinoga/codex-dock/issues/new?template=bug_report.yml).
+[Report a bug](https://github.com/gambinoga/codock/issues/new?template=bug_report.yml).
 
 ## Contribute
 

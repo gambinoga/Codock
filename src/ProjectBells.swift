@@ -16,12 +16,12 @@ struct TaskInfo: Codable, Identifiable, Equatable {
     var dismissible: Bool { ["completed", "failed", "interrupted", "notLoaded"].contains(status) }
     var stateLabel: String {
         switch status {
-        case "inProgress": return "En cours"
-        case "waiting": return "Réponse requise"
-        case "completed": return "Terminé"
-        case "failed": return "En erreur"
-        case "interrupted": return "Interrompu"
-        default: return "Inactif"
+        case "inProgress": return "Running"
+        case "waiting": return "Needs input"
+        case "completed": return "Done"
+        case "failed": return "Failed"
+        case "interrupted": return "Interrupted"
+        default: return "Idle"
         }
     }
     var symbol: String {
@@ -56,6 +56,11 @@ struct SavedState: Codable {
     var offset: Double?
     var mode: DockMode?
     var screenID: String?
+    var docks: [DockPlacement]?
+    var restoredDocks: [DockPlacement] {
+        if let docks, !docks.isEmpty { return docks }
+        return [DockPlacement(id: "primary", edge: edge ?? .right, offset: offset ?? 0.5, mode: mode ?? .auto, screenID: screenID)]
+    }
 }
 
 final class Model: ObservableObject {
@@ -159,7 +164,7 @@ final class Model: ObservableObject {
                 DispatchQueue.main.async {
                     self.loading = false
                     guard revision == self.configurationRevision else { self.poll(); return }
-                    self.recordReadFailure("Lecture Codex indisponible : \(error.localizedDescription)")
+                    self.recordReadFailure("Codex metadata is unavailable : \(error.localizedDescription)")
                 }
             }
         }
@@ -173,7 +178,7 @@ final class Model: ObservableObject {
     }
     func apply(_ snapshot: Snapshot, now: Date = Date()) {
         guard snapshot.connected else {
-            recordReadFailure(snapshot.error ?? "Lecture locale indisponible", now: now)
+            recordReadFailure(snapshot.error ?? "Local metadata is unavailable", now: now)
             return
         }
         firstReadFailure = nil
@@ -322,7 +327,7 @@ final class Model: ObservableObject {
         navigate(url: url, key: task.eventID, fallback: CodexLinks.newConversation(project), onFailure: onFailure) { [weak self] fallback in
             guard let self else { return }
             if fallback {
-                self.didFallbackOpen?(project.id, "Le chat n’a pas pu être ouvert. Une nouvelle conversation a été ouverte dans le projet ; le résultat reste non consulté.")
+                self.didFallbackOpen?(project.id, "Could not open the chat. A new conversation was opened in the project; the original result remains unread.")
             } else { self.markSeen(task) }
             self.didOpenTask?()
         }
@@ -338,14 +343,14 @@ final class Model: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             guard let self, self.openingRequest == request else { return }
             self.openingRequest = nil; self.openingTask = nil
-            self.openingError = "Codex ne confirme pas l’ouverture. Réessaie."
+            self.openingError = "Codex did not confirm opening. Please try again."
             onFailure?()
         }
         let finish: (Bool, Bool) -> Void = { [weak self] success, usedFallback in
             guard let self, self.openingRequest == request else { return }
             self.openingRequest = nil; self.openingTask = nil
             if success { onSuccess(usedFallback) }
-            else { self.openingError = "Impossible d’ouvrir Codex. Réessaie."; onFailure?() }
+            else { self.openingError = "Could not open Codex. Please try again."; onFailure?() }
         }
         DispatchQueue.main.async { [weak self] in
             guard let self, self.openingRequest == request else { return }

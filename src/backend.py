@@ -37,7 +37,7 @@ def project_for(thread, global_state, projects):
 
 
 def catalog_from(state):
-    return [{"id": identity, "name": project.get("name") or "Projet", "roots": project.get("rootPaths") or []}
+    return [{"id": identity, "name": project.get("name") or "Project", "roots": project.get("rootPaths") or []}
             for identity, project in state.get("local-projects", {}).items()
             if isinstance(project, dict) and project.get("rootPaths")]
 
