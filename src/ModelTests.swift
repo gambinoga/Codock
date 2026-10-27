@@ -1,0 +1,131 @@
+import Foundation
+
+func runModelTests() {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try! FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    var checks = 0
+    func check(_ value: @autoclosure () -> Bool, _ message: String) { precondition(value(), message); checks += 1 }
+    func make(_ name: String) -> Model {
+        let directory = root.appendingPathComponent(name)
+        try! FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let config = DockConfiguration(projects: [Project(id: "p", name: "P", roots: ["/tmp/project & #é"], palette: 0), Project(id: "q", name: "Q", roots: ["/tmp/q"], palette: 1)])
+        try! JSONEncoder().encode(config).write(to: directory.appendingPathComponent("configuration.json"))
+        return Model(resources: directory, data: directory)
+    }
+    func task(_ id: String, _ status: String, turn: String = "1", project: String = "p", at: Double = 100) -> TaskInfo {
+        TaskInfo(id: id, project: project, title: "Conversation " + id, turn: turn, status: status, started: at, completed: ["completed", "failed"].contains(status) ? at + 10 : 0)
+    }
+    func feed(_ model: Model, _ rows: [TaskInfo]) { model.apply(Snapshot(connected: true, tasks: rows, inputMonitoring: true, error: nil)) }
+    func spin() { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    let model = make("states")
+    var events: [String] = []
+    model.didReceiveEvents = { events += $0 }
+    let a = task("a", "inProgress"), b = task("b", "inProgress", at: 200)
+    feed(model, [a, task("old", "completed", at: 10)])
+    check(model.unread("p").isEmpty && events.isEmpty, "Startup never notifies historical results or existing activity")
+    check(model.directTarget("p")?.id == "a", "Only running thread opens directly despite quiet history")
+    feed(model, [a, b, task("old", "completed", at: 10)])
+    check(model.summary("p").running == 2 && model.summary("p").badgeText == "2", "Multiple running conversations have a neutral count")
+    check(model.directTarget("p") == nil, "Two running conversations open a list")
+    check(events == ["p"], "New execution reveals only its project")
+    let done = task("a", "completed")
+    feed(model, [done, b, task("old", "completed", at: 10)])
+    check(model.summary("p").running == 1 && model.summary("p").done == 1, "Completion and another running thread coexist")
+    check(model.summary("p").status == .running && !model.summary("p").hasBadge, "Running remains top priority above one done result")
+    check(model.directTarget("p")?.id == "a", "One actionable result opens before a running thread")
+    feed(model, [done, b, task("c", "inProgress", at: 50)])
+    let failed = task("c", "failed", at: 50)
+    feed(model, [done, b, failed])
+    check(model.summary("p").status == .failed && model.summary("p").running == 1, "Unseen error wins badge while running ring remains")
+    check(model.summary("p").badgeText == "×", "Single failure uses failure symbol")
+    let approval = task("d", "waiting", at: 25)
+    feed(model, [done, b, failed, approval])
+    check(model.summary("p").priority == 4 && model.summary("p").topCount == 1, "Approval has highest priority")
+    check(model.conversations("p").map { model.priority($0) } == [4, 3, 2, 1], "Active rows sort by priority")
+    check(model.directTarget("p") == nil, "Several actionable conversations open list")
+    model.dismissFinished("p")
+    check(model.finished("p").isEmpty && model.summary("p").approvals == 1 && model.summary("p").running == 1, "Bulk dismissal affects done/failed only")
+    check(model.recent("p").count == 2 && model.visible("p").count == 4, "Dismissed rows move into recent and remain available")
+    check(model.directTarget("p")?.id == "d", "One approval opens before other running work")
+    model.dismiss(approval)
+    check(model.priority(approval) == 4, "Approval cannot be dismissed")
+    var closed = false
+    model.didOpenTask = { closed = true }
+    model.openConversation = { _, callback in callback(true) }
+    model.open(approval); spin()
+    check(closed && model.priority(approval) == 4, "Opening an approval closes list without clearing it")
+    let unseen = make("counts")
+    feed(unseen, [task("a", "inProgress"), task("b", "inProgress")])
+    feed(unseen, [task("a", "completed"), task("b", "completed")])
+    check(unseen.summary("p").status == .done && unseen.summary("p").badgeText == "2", "Two unseen completions produce green count")
+    check(unseen.directTarget("p") == nil, "Multiple done results open list")
+    unseen.dismiss(task("a", "completed"))
+    check(unseen.summary("p").done == 1 && unseen.summary("p").badgeText == nil, "Reading one completion leaves one green dot")
+    check(unseen.recent("p").first?.id == "a" && unseen.directTarget("p")?.id == "b", "Acknowledged result moves to Recent and single remaining action opens directly")
+    unseen.openConversation = { _, callback in callback(true) }
+    unseen.open(task("b", "completed")); spin()
+    check(unseen.quiet && unseen.recent("p").count == 2, "Opening last done result makes project quiet without deleting history")
+    let restored = Model(resources: unseen.resources, data: unseen.data)
+    check(restored.quiet && restored.recent("p").count == 2, "Recent and read state survive restart")
+    feed(restored, [task("a", "notLoaded"), task("b", "completed")])
+    feed(restored, [task("a", "completed"), task("b", "completed")])
+    check(restored.unread("p").isEmpty, "Transient status changes cannot re-notify an acknowledged execution")
+    let latest = make("latest")
+    feed(latest, [task("a", "inProgress")]); feed(latest, [task("a", "completed")])
+    feed(latest, [task("a", "inProgress", turn: "2", at: 200)])
+    check(latest.visible("p").count == 1 && latest.unread("p").isEmpty, "New turn replaces obsolete results in same conversation")
+    feed(latest, [task("a", "completed", turn: "2", at: 200)])
+    check(latest.summary("p").done == 1, "Only latest turn contributes to conversation badge")
+    var archived = Snapshot(connected: true, tasks: [], inputMonitoring: true, error: nil)
+    archived.archivedIDs = ["a"]; latest.apply(archived)
+    check(latest.visible("p").isEmpty && latest.unread("p").isEmpty, "Archived conversations disappear from history and attention")
+    let limits = make("recents")
+    feed(limits, (1...5).map { task(String($0), "completed", at: Double($0) * 100) })
+    check(limits.recent("p").map { $0.id } == ["5", "4", "3"], "Quiet project shows three newest recent conversations")
+    check(limits.directTarget("p") == nil, "Quiet-only project opens its list, never an old chat directly")
+    feed(limits, (1...5).map { task(String($0), "completed", at: Double($0) * 100) } + [task("run", "inProgress")])
+    check(limits.recent("p").map { $0.id } == ["5", "4"], "Active project limits recent history to two rows")
+    let ordering = make("ordering")
+    feed(ordering, [task("new", "waiting", at: 200), task("old", "waiting", at: 100)])
+    check(ordering.conversations("p").map { $0.id } == ["old", "new"], "Same-priority active threads sort oldest first")
+    check(ordering.summary("p").badgeText == "2", "Several approval threads share amber count")
+    ordering.dismissFinished()
+    check(ordering.summary("p").approvals == 2, "Global dismissal also preserves all approvals")
+    let offline = make("offline")
+    feed(offline, [task("a", "inProgress")])
+    let now = Date()
+    let failure = Snapshot(connected: false, tasks: [], inputMonitoring: false, error: "reader failure")
+    offline.apply(failure, now: now)
+    check(offline.connected && offline.tasks.count == 1, "Brief read failure keeps last state without alert")
+    offline.apply(failure, now: now.addingTimeInterval(30))
+    check(!offline.connected && offline.tasks.count == 1, "Prolonged read failure signals staleness without clearing tasks")
+    check(Model(resources: offline.resources, data: offline.data).tasks.count == 1, "Disk display cache survives restart")
+    feed(offline, [task("a", "inProgress")])
+    check(offline.connected && offline.error == nil, "Successful read clears warning")
+    let launch = make("navigation")
+    feed(launch, [task("a", "inProgress")]); feed(launch, [task("a", "completed")])
+    var urls: [URL] = []
+    var callbacks: [(Bool) -> Void] = []
+    var fallbackNotice: String?
+    launch.openConversation = { url, callback in urls.append(url); callbacks.append(callback) }
+    launch.didFallbackOpen = { _, message in fallbackNotice = message }
+    launch.open(task("a", "completed")); launch.open(task("a", "completed")); spin()
+    check(urls.count == 1 && launch.openingTask != nil, "Immediate progress prevents duplicate launches")
+    check(urls[0].absoluteString == "codex://threads/a", "Existing chat deep link uses exact synced ID")
+    callbacks.removeFirst()(false)
+    check(urls.count == 2 && URLComponents(url: urls[1], resolvingAgainstBaseURL: false)?.queryItems?.first?.value == "/tmp/project & #é", "Failed thread launch falls back to encoded workspace composer")
+    callbacks.removeFirst()(true)
+    check(fallbackNotice != nil && launch.summary("p").done == 1, "Workspace fallback explains behavior and never consumes original notice")
+    urls = []; callbacks = []
+    launch.newConversation(launch.projects[0]); spin()
+    check(urls.count == 1 && urls[0].path == "/new", "New conversation uses official new composer link")
+    callbacks.removeFirst()(true)
+    check(launch.openingTask == nil && launch.tasks.count == 1, "New composer launches no phantom agent/task")
+    launch.open(task("a", "completed")); spin()
+    callbacks.removeFirst()(false); callbacks.removeFirst()(false)
+    check(launch.openingError != nil && launch.summary("p").done == 1, "Both launch failures keep original notice and allow retry")
+    check(ConversationTime.text(task: task("run", "inProgress", at: 100), now: Date(timeIntervalSince1970: 352)) == "En cours · 4:12", "Running duration is shown as minutes:seconds")
+    check(ConversationTime.text(task: task("done", "completed", at: 100), now: Date(timeIntervalSince1970: 230)).contains("2 min"), "Completion shows time since finish")
+    print("\(checks) conversation model, notification, recent-history and navigation checks passed")
+}

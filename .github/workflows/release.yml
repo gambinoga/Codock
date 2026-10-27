@@ -1,0 +1,57 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    name: Package ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements-release.txt
+      - name: Build standalone reader
+        run: PYINSTALLER_CONFIG_DIR="$PWD/build/pyinstaller-cache" python -m PyInstaller --clean --noconfirm --onefile --name reader --distpath build/reader-dist --workpath build/reader-work --specpath build src/backend.py
+      - name: Test source and bundled reader against synthetic data
+        run: DOCK_READER_BINARY="$PWD/build/reader-dist/reader" python src/test_backend.py
+      - name: Build native app with standalone reader
+        run: DOCK_BUNDLED_READER="$PWD/build/reader-dist/reader" sh src/build.sh
+      - name: Test app
+        run: '"Cloches Projets.app/Contents/MacOS/ProjectBells" --self-test'
+      - name: Package and checksum
+        run: python scripts/package_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" dist/* --verify-tag --title "Codex Dock $TAG" --notes-file docs/RELEASE_NOTES.md

@@ -1,0 +1,2 @@
+# Build tool only; the installed app does not pip-install anything.
+pyinstaller==6.16.0

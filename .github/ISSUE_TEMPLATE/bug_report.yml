@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a reproducible Codex Dock problem.
+body:
+  - type: markdown
+    attributes:
+      value: "Do not upload databases, chats, credentials, or unredacted local paths."
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: macOS version, Mac architecture, Codex version, Codex Dock release.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Sanitized error or screenshot

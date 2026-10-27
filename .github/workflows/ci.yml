@@ -1,0 +1,33 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    name: macOS (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Metadata reader tests
+        run: python src/test_backend.py
+      - name: Build native app
+        run: sh src/build.sh
+      - name: Model, geometry and configuration tests
+        run: '"Cloches Projets.app/Contents/MacOS/ProjectBells" --self-test'
+      - name: Verify app signature
+        run: codesign --verify --deep --strict 'Cloches Projets.app'

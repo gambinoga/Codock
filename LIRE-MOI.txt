@@ -1,0 +1,63 @@
+NOTIFS — CODEX STATUS DOCK · v2.2.0
+
+DÉMARRER
+Installer « Cloches Projets.app » dans ~/Applications (ou /Applications), puis l’ouvrir depuis cet emplacement. Ne pas exécuter la copie de développement restée dans Documents. L’application vit dans la barre de menus, sans icône dans le Dock macOS. Le menu de Notifs permet de configurer les projets ou de retrouver le dock. ⌥⌘J affiche ou masque le dock.
+
+CONFIGURER POUR TON COMPTE
+Clic droit sur le dock ou son onglet → Configurer les projets…
+Choisir un ou plusieurs projets déjà détectés dans Codex ou leurs dossiers, sans limite de nombre. Au moins un projet doit rester configuré. Donner à chacun un alias de 1 à 8 caractères et une des quatre palettes. Les flèches permettent de changer l’ordre. Enregistrer.
+Le dossier de données Codex est ~/.codex par défaut ; il peut être choisi dans les réglages. Choisir un autre dossier de données remet la sélection de projets du formulaire à zéro ; les réglages actifs ne changent qu’après Enregistrer. Si la sélection est vide, ajouter d’abord un dossier de projet, puis enregistrer pour actualiser le catalogue du nouveau dossier et sélectionner ses autres projets.
+Une installation neuve n’embarque aucun projet ni chemin personnel. Les anciennes installations de Cloches Projets conservent leurs projets DSS et les résultats non consultés.
+
+LIRE LES ÉTATS
+Inactif ou résultat consulté : avatar atténué.
+En cours : anneau animé dans la couleur du projet.
+Demande explicite bloquante : anneau et « ! » ambre.
+Erreur non consultée : anneau rouge et « × ».
+Terminé non consulté : point vert.
+Si plusieurs conversations partagent l’état prioritaire, le badge indique leur nombre. Priorité : demande, erreur non consultée, exécution, fin non consultée. L’anneau tourne dès qu’une conversation s’exécute, même avec un badge de demande ou d’erreur.
+Au survol, l’avatar devient pleinement opaque, sans modifier la taille du dock ; l’infobulle résume les états et la cible du clic.
+Une vérification automatique d’autorisation n’est pas présentée comme une demande humaine. Les hooks ne permettent pas de distinguer toutes les approbations automatiques des approbations manuelles : le « ! » est réservé aux questions explicites observées. Les icônes du dock ne valident jamais une autorisation à ta place ; elles ouvrent le chat concerné.
+
+UTILISER LE DOCK
+Glisser depuis n’importe quelle partie de la pilule, y compris un avatar. Après 6 points de mouvement, le clic est annulé et le déplacement commence. Le dock s’ancre au bord le plus proche : vertical à gauche/droite, horizontal en haut/bas. Un aperçu pointillé indique la destination. En atteignant le bord physique de l’écran, « Relâcher pour masquer » permet de le cacher.
+Clic sur un avatar : si une seule conversation demande une action (demande, erreur ou fin non consultée), elle s’ouvre directement, même si d’autres s’exécutent. Sans action à traiter, une seule conversation en cours s’ouvre directement. Sinon, une liste apparaît côté intérieur du dock, ancrée à l’avatar sélectionné.
+La liste montre les conversations actives par priorité puis ancienneté, et « Récent » : les 3 dernières conversations calmes, ou 2 si des conversations sont actives. Une seule ligne représente chaque conversation. Les chats archivés sont exclus.
+Ouvrir un résultat terminé/en erreur l’acquitte après transmission réussie à Codex. La croix permet de l’acquitter sans l’ouvrir : la ligne passe dans « Récent » et le badge diminue. Clic droit sur un avatar : acquitter les résultats de ce projet, ou ceux de tous les projets. Une demande reste affichée jusqu’à sa réponse dans Codex.
+« Nouvelle conversation » ouvre un nouveau formulaire dans le dossier du projet ; aucun agent ne démarre avant ton premier message. Les lignes existantes utilisent leur identifiant exact. Si macOS refuse ce lien, le dock ouvre le formulaire du projet, le signale et conserve le résultat non consulté. Une acceptation du lien par macOS ne permet pas de vérifier que Codex affiche effectivement le chat.
+Référence des liens Codex : https://learn.chatgpt.com/docs/app/commands
+
+VISIBILITÉ
+« Masquer quand inactif » (défaut) garde le dock visible pendant une exécution, une demande ou tant qu’un résultat reste non consulté.
+« Toujours visible » le laisse affiché.
+« Masquer maintenant » conserve un onglet de 10 × 64 points au bord. Survoler l’onglet fait apparaître le dock ; le quitter le replie après 500 ms. Cliquer l’onglet active « Toujours visible ».
+Un démarrage, une fin, une erreur ou une demande observée révèle un dock masqué pendant 4 secondes, avec un contour et une infobulle sur le projet concerné. En mode automatique, il reste ensuite visible tant qu’il y a une activité ou un résultat à consulter. Les animations respectent « Réduire les animations » de macOS.
+La position, le bord et le mode sont mémorisés. « Réinitialiser la position » revient au milieu du bord droit.
+
+DÉTECTION DES DEMANDES EXPLICITES (FACULTATIF)
+Le suivi des tâches et des fins fonctionne par lecture locale. Pour observer les questions bloquantes, préparer puis installer les hooks officiels passifs :
+/usr/bin/python3 '/chemin/vers/Cloches Projets.app/Contents/Resources/install_hooks.py'
+Puis, après lecture du fichier hooks-prets.json indiqué par cette commande, relancer avec --install. Si le dossier de données Codex a été personnalisé, ajouter --home '/chemin/.codex'.
+Valider explicitement la confiance avec /hooks dans Codex. L’installateur ne touche jamais au registre de confiance et conserve les autres hooks. Il sauvegarde le fichier existant avant de le modifier. Déplacer l’application après cette installation demande de réinstaller et de revalider les hooks, car leur commande contient le chemin de l’application.
+Les commandes des hooks déjà approuvées restent inchangées. L’ancienne copie de développement reçoit un fichier data-redirect.json qui redirige leurs écritures vers Application Support ; aucun changement du registre de confiance.
+
+DONNÉES ET LIMITES
+Lecture locale uniquement, pas de requêtes réseau ni de modification des bases Codex. Le contenu des chats n’est pas lu ; seules les métadonnées de tâches et de projets sont utilisées. Les schémas SQLite internes peuvent changer avec Codex.
+Les erreurs brèves sont réessayées silencieusement. Le dernier état est conservé ; après 30 secondes d’échec continu, « Actualisation retardée » signale que les données ne sont plus fraîches. Les détails restent repliés.
+Toutes les données actives sont dans ~/Library/Application Support/Notifs. L’ancienne installation conserve sa copie Data comme sauvegarde. Ne pas partager ces dossiers de réglages et d’historique. La comparaison des dossiers de projets est lexicale et ne parcourt pas les fichiers des projets.
+Application macOS 13+ ; Les releases publiques embarquent leur lecteur Python autonome ; aucun outil développeur n’est nécessaire pour les utiliser. Les builds depuis les sources utilisent /usr/bin/python3 (outils développeur Apple), sauf si DOCK_BUNDLED_READER est fourni. Ce build de développement est signé localement, pas notarié par Apple. La présence au-dessus de certaines applications plein écran dépend de macOS ; les notifications système natives optionnelles ne sont pas intégrées dans cette version.
+
+DÉVELOPPER
+sh src/build.sh
+python3 src/install_local.py --install
+'Cloches Projets.app/Contents/MacOS/ProjectBells' --self-test
+python3 src/test_backend.py
+sh src/package.sh
+Le paquet de partage est créé dans releases/, sans Data, hooks-prets.json, journaux ni réglages personnels. Il reste à signer et notarier avec un compte développeur pour une distribution macOS publique.
+
+INSTALLATION LOCALE DE DÉVELOPPEMENT
+src/install_local.py --install copie le build dans ~/Applications, conserve une sauvegarde d’une éventuelle version installée, migre les données connues de Data sans écraser les données déjà présentes dans Application Support, puis redirige les anciens hooks. Cette opération ne modifie aucune autorisation macOS ni le registre de confiance des hooks. Après chaque compilation, réinstaller et relancer la copie de ~/Applications.
+
+NOMBRE DE PROJETS ET BARRE DE MENUS
+Le dock accepte un nombre illimité de projets. S’il dépasse la longueur du bord de l’écran, faire défiler les avatars avec la molette ou le trackpad. Un événement révèle le projet concerné dans cette zone. Les quatre palettes peuvent être réutilisées.
+« Notifs » dans la barre de menus macOS permet d’afficher le dock, configurer les projets, redémarrer ou quitter l’application. Après « Quitter », rouvrir ~/Applications/Cloches Projets.app pour la relancer ; son menu disparaît lorsqu’elle est arrêtée.
