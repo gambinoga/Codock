@@ -14,7 +14,7 @@ With the app installed in `~/Applications/Codock.app`:
 /usr/bin/python3 "$HOME/Applications/Codock.app/Contents/Resources/install_hooks.py"
 ```
 
-This prepares `hooks-prets.json` in `~/Library/Application Support/Notifs` without
+This prepares `prepared-hooks.json` in `~/Library/Application Support/Notifs` without
 changing the active hooks file. Read it before choosing to install:
 
 ```sh

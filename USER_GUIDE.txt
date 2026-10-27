@@ -64,7 +64,7 @@ can optionally be observed through passive hooks. This advanced option requires 
 Python 3 (Command Line Tools); normal release operation does not.
 Prepare the hook configuration for your own review:
 /usr/bin/python3 "$HOME/Applications/Codock.app/Contents/Resources/install_hooks.py"
-After reviewing hooks-prets.json in Application Support/Notifs, run again with --install.
+After reviewing prepared-hooks.json in Application Support/Notifs, run again with --install.
 Review and explicitly approve trust with /hooks in Codex. Unrelated hooks are preserved,
 the previous hooks file is backed up, and trust records are never modified. For a custom
 Codex data directory add --home '/absolute/path/to/.codex'. Moving the app changes hook

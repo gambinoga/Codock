@@ -21,6 +21,7 @@ __pycache__/
 *.sqlite*
 *.db
 hooks-prets.json
+prepared-hooks.json
 reader-*.json
 state.json
 configuration.json

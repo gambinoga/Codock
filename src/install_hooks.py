@@ -43,7 +43,7 @@ def main():
     original = target.read_text() if target.exists() else None
     content = json.loads(original) if original else {}
     merged = json.dumps(merged_hooks(content, root, app, data, args.home), indent=2, ensure_ascii=False) + "\n"
-    (data / "hooks-prets.json").write_text(merged)
+    (data / "prepared-hooks.json").write_text(merged)
     if args.install:
         if original is not None:
             stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -51,7 +51,7 @@ def main():
         target.write_text(merged)
         print("Hooks installed. Review and explicitly approve trust with /hooks in Codex.")
     else:
-        print(data / "hooks-prets.json")
+        print(data / "prepared-hooks.json")
 
 
 if __name__ == "__main__":
