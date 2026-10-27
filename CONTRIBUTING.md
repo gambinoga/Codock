@@ -58,7 +58,7 @@ Locally, with Python 3.10+:
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-release.txt
-.venv/bin/PYINSTALLER_CONFIG_DIR="$PWD/build/pyinstaller-cache" python -m PyInstaller --clean --noconfirm --onefile --name reader --distpath build/reader-dist --workpath build/reader-work --specpath build src/backend.py
+PYINSTALLER_CONFIG_DIR="$PWD/build/pyinstaller-cache" .venv/bin/python -m PyInstaller --clean --noconfirm --onefile --name reader --distpath build/reader-dist --workpath build/reader-work --specpath build src/backend.py
 DOCK_BUNDLED_READER="$PWD/build/reader-dist/reader" sh src/build.sh
 DOCK_READER_BINARY="$PWD/build/reader-dist/reader" .venv/bin/python src/test_backend.py
 'Cloches Projets.app/Contents/MacOS/ProjectBells' --self-test

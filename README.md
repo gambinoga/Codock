@@ -15,7 +15,7 @@ You do need a working local Codex installation whose metadata uses the supported
 1. Download the ZIP for your Mac from **[the latest release](https://github.com/gambinoga/codex-dock/releases/latest)**:
    - **Apple Silicon** (M1/M2/M3/M4/…): `Codex-Dock-macOS-arm64.zip`.
    - **Intel**: `Codex-Dock-macOS-x86_64.zip`.
-2. Unzip it and move **Codex Dock.app** to `~/Applications` (create that folder if necessary), or `/Applications`.
+2. Quit any previous copy, then unzip it and move **Codex Dock.app** to `~/Applications` (create that folder if necessary), or `/Applications`.
 3. Open it, choose your Codex projects or project folders, set their short aliases and colors, and save.
 
 **macOS 13 or later.** These initial builds are ad-hoc signed, not Apple notarized.
